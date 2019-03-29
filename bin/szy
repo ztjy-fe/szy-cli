@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+
+let pkg = require('../package.json');
+
+require('commander')
+  .version(pkg.version, '-v, --version')
+  .usage('<command> [options]')
+  .command('create', '创建一个基于脚手架的项目或生成一个基于脚手架的demo')
+  .command('token', '设置github认证信息')
+  .parse(process.argv)

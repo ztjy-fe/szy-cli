@@ -1,0 +1,78 @@
+#!/usr/bin/env node
+
+let program = require('commander');
+let chalk = require('chalk');
+let fs = require('fs');
+let path = require('path');
+
+let log = require('../src/log');
+let utils = require('../src/utils');
+
+/**
+ * Usage.
+ */
+
+program
+    .usage("-u <你的github用户名> -p <你的github密码>")
+    .option('-u, --username', 'github用户名')
+    .option('-p, --password', 'github密码')
+    .description(chalk.gray('# 设置身份认证以获得更多的请求限制:') + '\n\n    https://developer.github.com/v3/auth/#basic-authentication')
+    .parse(process.argv);
+
+/**
+ * Help.
+ */
+
+program.on('--help', function () {
+    log.tips('  Examples:');
+    log.tips();
+    log.tips(chalk.gray('    # 设置身份认证以获得更多的请求限制'));
+    log.tips("    $ szy token -u <你的github用户名> -p <你的github密码>");
+    log.tips();
+    log.success('  详情见github文档:\n');
+    log.tips("      https://developer.github.com/v3/auth/#basic-authentication");
+});
+
+function help () {
+    program.parse(process.argv);
+    if (program.args.length < 2) {
+        return program.help();
+    }
+}
+
+help();
+
+process.on('exit', () => log.tips());
+
+/**
+ * save token
+ */
+
+function setToken () {
+    let token = {
+        username: '',
+        password: ''
+    };
+
+    if(program.args[0].length > program.args[1].length){
+        token.username = program.args[1];
+        token.password = program.args[0];
+    } else {
+        token.username = program.args[0];
+        token.password = program.args[1];
+    }
+
+    let binPath = utils.szyBinPath();
+
+    let tokenPath = path.normalize(path.join(binPath,'../../','lib/node_modules/szy-cli/src/token.json'));
+
+    fs.writeFile(tokenPath, JSON.stringify(token), {encoding: "utf-8"}, (err) => {
+        log.tips();
+        if(err){
+            log.error(err.message);
+        }
+        log.success(`token saved at ${tokenPath}`);
+    })
+}
+
+setToken();

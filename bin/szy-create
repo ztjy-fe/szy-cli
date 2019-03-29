@@ -1,0 +1,244 @@
+#!/usr/bin/env node
+
+let program = require('commander');
+let chalk = require('chalk');
+let inquirer = require('inquirer');
+let path = require('path');
+let rm = require('rimraf').sync;
+let uuidV1 = require('uuid/v1');
+let ora = require('ora');
+let os = require('os');
+let download = require('download-git-repo');
+let shell = require('shelljs');
+
+let log = require('../src/log');
+let checkRepos = require('../src/check-repos');
+let generate = require('../src/generate');
+let utils = require('../src/utils');
+let checkVersion = require('../src/check-version');
+
+/**
+ * Usage.
+ */
+
+program
+    .usage('<存放项目的路径>');
+    // .option('-o, --origin', 'set git remote origin');
+
+/**
+ * Help.
+ */
+
+program.on('--help', function () {
+    log.tips('  Examples:');
+    log.tips();
+    log.tips(chalk.gray('    # 从神州鹰github仓库创建一个基于前端脚手架的项目.'));
+    log.tips('    $ szy create ./dirName');
+    log.tips();
+});
+function help () {
+    program.parse(process.argv);
+    if (program.args.length < 1) {
+        return program.help();
+    }
+}
+
+help();
+
+/**
+ * Padding.
+ */
+
+log.tips();
+process.on('exit', () => log.tips());
+
+/**
+ * Settings.
+ */
+let projectDirName = program.args[0];
+
+if(!projectDirName || /^\w:\/?$/.test(projectDirName)) {
+    projectDirName = '.'
+}
+
+let origin = program.args[1];
+let projectName = projectDirName === '.' ? path.relative('../', process.cwd()) : projectDirName;
+let projectDirPath = path.resolve(projectDirName || '.');
+let clone = program.clone || false;
+let preProjectName = projectName;
+
+let platform = os.platform();
+
+
+let template = '';
+inquirer.prompt([{
+    type: 'list',
+    message: '请选择要创建的脚手架或Demo',
+    name: 'tpl',
+    choices: [
+        {name: 'HTML5脚手架', value: 'ztjy-fe/mobile-scaffolding'}, 
+        {name: '管理后台脚手架', value: 'ztjy-fe/admin-scaffolding'},
+        {name: '运营推广页面脚手架', value: 'ztjy-fe/bd-scaffolding'},
+        new inquirer.Separator(),
+        {name: '基于HTML5脚手架的demo', value: 'ztjy-fe/mobile-demo'}, 
+        {name: '基于管理后台脚手架的demo', value: 'ztjy-fe/admin-demo'}
+    ]
+}]).then((answers) => {
+    run(answers.tpl);
+});
+
+function setOrigin() {
+    // set origin
+    try {
+        shell.cd(projectDirPath);
+        shell.exec(`git init`, { async: false });
+        shell.exec(`git remote add origin ${origin}`, { async: false });
+        log.tips(chalk.green(`${projectName} is related to remote repo: ${origin}`));
+    } catch (e) {
+        log.tips(chalk.red(`set git remote origin faild: ${e.message}`));
+    }
+}
+
+function run(tpl) {
+    template = tpl;
+    // if (template.indexOf('demo') > -1) {
+    //     clone = true;
+    // }
+    if(utils.isExist(projectDirPath)){
+        inquirer.prompt([{
+            type: 'confirm',
+            message: projectDirName === '.'
+                ? '在当前位置生成吗?'
+                : '路径已存在. 继续?',
+            name: 'ok'
+        }]).then((answers) => {
+            if(answers.ok){
+                log.tips();
+                runTask();
+            }
+        });
+    } else {
+        // 转换 projectName(eg: xxx/, xxx/sss, /xxx/sss, c:/xxx/sss) to xxx
+        let normalizeName = '';
+        let index = projectName.indexOf('/');
+
+        if(projectDirName.startsWith('/') || /^\w:/.test(projectDirName)) {
+            normalizeName = projectName.substr(index).split('/')[0] || projectName.substr(index).split('/')[1];
+            normalizeName = normalizeName ? normalizeName : 'demo';
+        } else if(index >= 0) {
+            normalizeName = projectName.split('/')[0];
+        }
+
+        if(normalizeName && normalizeName !== projectName){
+            inquirer.prompt([{
+                type: 'confirm',
+                message: `该项目将被创建到： ${normalizeName}`,
+                name: 'ok'
+            }]).then((answers) => {
+                if(answers.ok){
+                    log.tips();
+                    projectName = normalizeName;
+                    runTask();
+                }
+                return;
+            });
+        } else {
+            runTask();
+        }
+    }
+}
+
+function runTask(){
+    let isLocalTemplate = utils.isLocalTemplate(template);
+
+    if(isLocalTemplate){
+        let templatePath = template.startsWith('/') || /^\w:/.test(template)
+            ? template : path.normalize(path.join(process.cwd(), template));
+
+        if(utils.isExist(templatePath)){
+            log.success(`模板来自 ${templatePath}`);
+            log.tips();
+
+            generate(projectName,templatePath,projectDirPath, (err,msg = "") => {
+                if(err){
+                    log.error(`生成错误: ${err.message.trim()}`);
+                }
+
+                if(origin && /\.git$/.test(origin)){
+                    setOrigin();
+                }
+
+                if(msg){
+                    let re = /{{[^{}]+}}/g;
+                    log.tips('\n' + msg.replace(re,projectName).split(/\r?\n/g).map(function (line) {
+                            return '   ' + line
+                        }).join('\n'));
+                }
+            });
+        } else {
+            log.tips();
+            log.error(`本地模板 ${template} 未找到.`);
+        }
+    } else  {
+        let arr = platform == 'win32' ? template.split('/') : template.split(path.sep);
+
+        if(arr.length < 2 || !arr[0] || !arr[1]){
+            return program.help();
+        }
+
+        log.tips();
+        log.tips(chalk.red(`本地模板 ${template} 未找到. 将从github上拉取.`));
+        log.tips();
+
+        // 转换模板路径为 xxx/xxx
+        template = template.split(path.sep).slice(0, 2).join('/');
+        // 检查仓库是否存在
+        checkVersion(() => {
+            checkRepos(template,downloadAndGenerate);
+        });
+    }
+}
+
+/**
+ * 从git仓库中下载一个模板
+ * @param {String} template
+ */
+
+function downloadAndGenerate (template){
+    let tmp = os.tmpdir() + '/szy-template-' + uuidV1();
+    let spinner = ora({
+        text:`开始下载模板: ${template}`,
+        color:"blue"
+    }).start();
+
+    download(template,tmp,{ clone: clone }, (err) => {
+        process.on('exit', () => rm(tmp));
+
+        if(err){
+            //err.code/err.message;
+            spinner.text = chalk.red(`下载模板 ${template} 失败: ${err.message.trim()}`);
+            spinner.fail();
+            process.exit(1);
+        }
+        spinner.text = chalk.green(`${template} 下载成功`);
+        spinner.succeed();
+        log.tips();
+
+        generate(projectName,tmp,projectDirPath, (err,msg = "") => {
+            if(err){
+                log.error(`生成错误: ${err.message.trim()}`);
+            }
+
+            if(origin && /\.git$/.test(origin)){
+                setOrigin();
+            }
+
+            if(msg){
+                let re = /{{[^{}]+}}/g;
+                log.tips('\n' + msg.replace(re,preProjectName).split(/\r?\n/g).map(function (line) {
+                        return '   ' + line
+                    }).join('\n'));
+            }
+        });
+    });
+}
