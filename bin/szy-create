@@ -78,7 +78,15 @@ inquirer.prompt([{
     choices: [
         {name: 'HTML5脚手架', value: 'ztjy-fe/mobile-scaffolding'}, 
         {name: '管理后台脚手架', value: 'ztjy-fe/admin-scaffolding'},
-        {name: '运营推广页面脚手架', value: 'ztjy-fe/bd-scaffolding'},
+		{ name: '运营推广页面脚手架', value: 'ztjy-fe/bd-scaffolding' },
+		{
+			name: '新版移动端脚手架',
+			value: 'ztjy-fe/mobile-scaffolding2'
+		},
+		{
+			name: '新版管理后台脚手架',
+			value: 'ztjy-fe/admin-scaffolding2'
+		},
         new inquirer.Separator(),
         {name: '基于HTML5脚手架的demo', value: 'ztjy-fe/mobile-demo'}, 
         {name: '基于管理后台脚手架的demo', value: 'ztjy-fe/admin-demo'}
