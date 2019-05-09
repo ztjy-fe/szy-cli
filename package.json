@@ -1,6 +1,6 @@
 {
   "name": "szy-cli",
-  "version": "1.2.9",
+  "version": "1.3.0",
   "description": "神州鹰前端工具集",
   "bin": {
     "szy": "bin/szy",
