@@ -87,6 +87,10 @@ inquirer.prompt([{
 			name: '新版管理后台脚手架',
 			value: 'ztjy-fe/admin-scaffolding2'
 		},
+		{
+			name: '小程序开发脚手架',
+			value: 'ztjy-fe/mini-program'
+		},
         new inquirer.Separator(),
         {name: '基于HTML5脚手架的demo', value: 'ztjy-fe/mobile-demo'}, 
         {name: '基于管理后台脚手架的demo', value: 'ztjy-fe/admin-demo'}
